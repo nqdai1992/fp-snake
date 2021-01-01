@@ -7,9 +7,9 @@ if (process.stdin.isTTY) {
 }
 
 const config = {
-    loopTime: 400
+    loopTime: 100
 }
-const game = snake({ width: 10, height: 10 })
+const game = snake({ width: 10, height: 10, level: 1 })
 
 const isExitProcess    = key => key.name === 'c' && key.ctrl
 const isUpKey          = key => key.name === 'up'
