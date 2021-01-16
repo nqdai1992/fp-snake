@@ -1,17 +1,21 @@
 const indentity          = x => x;
+const pipe               = (...fns) => x => fns.reduce((f, g) => g(f), x)
 const range              = n => [...Array(n).keys()]
 const deepClone          = obj => JSON.parse(JSON.stringify(obj))
-const createMatrix2D     = width => height => range(height).map(row => range(width))
+const isPerpendicular    = point1 => point2 => (point1.x * point2.x + point1.y * point2.y) === 0
+const isEqualPoint       = point1 => point2 => point1.x === point2.x && point1.y === point2.y
 const fillArray          = arr => value => arr.map(item => value)
-const fillMatrix2D       = matrix => value => matrix.map(row => fillArray(row)(value))
 const addPoint           = point1 => point2 => ({ x: point1.x + point2.x, y: point1.y + point2.y })
 const enqueue            = arr => value => [...arr, value]
 const getLastItem        = arr => deepClone(arr).pop()
 const mod                = (a, b) => (a + b) % b
-const isPerpendicular    = point1 => point2 => (point1.x * point2.x + point1.y * point2.y) === 0
-const isEqualPoint       = point1 => point2 => point1.x === point2.x && point1.y === point2.y
 const getRandomInRange   = (min, max) => Math.floor(Math.random() * (max - min) + min)
-const isDuplicatePoint   = point => path => path.filter(isEqualPoint(point)).length >= 2
+
+const isDuplicatePoint      = point => path => path.filter(isEqualPoint(point)).length >= 2
+const createMatrix2D        = (width, height) => arr => arr.concat(range(height).map(row => range(width)))
+const fillMatrix2D          = value => matrix => matrix.map(row => fillArray(row)(value))
+const generateRandomPoint   = (width, height) => Point(getRandomInRange(1, width), getRandomInRange(1, height))
+
 const setValueMatrix2D = matrix => point => value => {
     const cloneMatrix = deepClone(matrix)
     cloneMatrix[point.y][point.x] = value
@@ -38,20 +42,33 @@ const Game = states => {
     let snack = Snack({
         direction: deepClone(UP),
         path: [Point(0, 0)],
+        border: {
+            width: states.width,
+            height: states.height
+        }
     })
-    let apple = Apple(Point(getRandomInRange(1, states.width), getRandomInRange(1, states.height)))
-    const matrix = Matrix(fillMatrix2D(createMatrix2D(states.width)(states.height))('.'))
+    let apple = generateRandomPoint(states.width, states.height)
+    const initMatrixData = pipe(
+        createMatrix2D(states.width, states.height),
+        fillMatrix2D('.')
+    )([])
+    const matrix = Matrix(initMatrixData)
     const command = { UP, DOWN, RIGHT, LEFT }
     const commandQueue = []
-    const maxDelay = 1000
+    const maxWaitTime = 1000
     const delayPerLevel = 100
-    let lastUpdatedAt = 0
-    let appleNumber = 1
     const isCollideSnakeAndApple = (snack, apple) => {
-        return isEqualPoint(snack.getHead())(apple.getPoint())
+        return isEqualPoint(snack.getHead())(apple)
     }
     const isCollideSnakeAndSnake = (snack) => {
         return isDuplicatePoint(snack.getHead())(snack.getPath())
+    }
+    
+    const draw = (snake, apple) => matrix => {
+        return matrix
+                .setValueOfPoint(apple)('o')
+                .setValueListOfPoint(snake.getPath())('x')
+                .getData()
     }
     return {
         execCommand: name => { 
@@ -59,35 +76,20 @@ const Game = states => {
         },
         isGameover: () => isGameover,
         next () {
-            let now = Date.now()
-            if ((now - lastUpdatedAt) > maxDelay - (states.level) * delayPerLevel) {
-                lastUpdatedAt = now
-                snack = snack
+            snack = snack
                     .changeDirection(commandQueue.shift())
-                    .move(normalizePoints(states.width, states.height))
-            }
-            
+                    .move()
+             
             if (isCollideSnakeAndApple(snack, apple)) {
-                snack = snack.grow(normalizePoints(states.width, states.height))
-                appleNumber -= 1
+                snack = snack.grow()
+                apple = generateRandomPoint(states.width, states.height)
             }
 
             if (isCollideSnakeAndSnake(snack)) {
                 isGameover =  true
             }
 
-            if (appleNumber === 0) {
-                apple = Apple(Point(getRandomInRange(1, states.width), getRandomInRange(1, states.height)))
-                appleNumber += 1
-            }
-
-            const snakePath  = snack.getPath()
-            const applePoint = apple.getPoint()
-
-            return matrix
-                .setValueOfPoint(applePoint)('o')
-                .setValueListOfPoint(snakePath)('x')
-                .getData()
+            return draw(snack, apple)(matrix)
         }
     }
 }
@@ -98,23 +100,21 @@ const Matrix = matrix => ({
     getValueOfPoint: point => matrix[point.y][point.x],
 })
 const Snack = states => ({
+    nomarlizeFunction: normalizePoints(states.border.width, states.border.height),
     changeDirection: direction => direction && isPerpendicular(direction)(states.direction) ? Snack({ ...states, direction }) : Snack(states),
-    move (nomarlizeFunction) {
+    move () {
         const newPoint = addPoint(this.getHead())(states.direction)
         const newPath = enqueue(states.path)(newPoint).slice(1)
-        return Snack({ ...states, path: nomarlizeFunction(newPath) })
+        return Snack({ ...states, path: this.nomarlizeFunction(newPath) })
     },
     getPath: () => states.path,
     setPath: path => Snack({ ...states, path}),
     getHead: () => getLastItem(states.path),
-    grow (nomarlizeFunction) {
+    grow () {
         const newPoint = addPoint(this.getHead())(states.direction)
         const newPath = enqueue(states.path)(newPoint)
-        return Snack({ ...states, path: nomarlizeFunction(newPath) })
+        return Snack({ ...states, path: this.nomarlizeFunction(newPath) })
     }
-})
-const Apple = point => ({
-    getPoint: () => point
 })
 
 module.exports = Game
