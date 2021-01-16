@@ -41,5 +41,9 @@ process.stdin.on('keypress', (key, data) => {
 
 const loop = setInterval(() => {
     console.clear()
+    if (game.isGameover()) {
+        clearInterval(loop)
+        return console.log("Game over")
+    }
     renderMatrix(game.next());
 }, config.loopTime)
